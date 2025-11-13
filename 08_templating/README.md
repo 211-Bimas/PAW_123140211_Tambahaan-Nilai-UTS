@@ -231,7 +231,7 @@ Hasil yang diharapkan:
 4 passed in 0.46 seconds
 ```
 
-hasil :
+Hasil :
 <img width="1241" height="446" alt="Screenshot 2025-11-13 224536" src="https://github.com/user-attachments/assets/cd299396-e9e7-4cfb-88fc-99dbc917b1c3" />
 
 ---
@@ -251,6 +251,7 @@ Buka di browser:
 
 Hasil: 
 <img width="1919" height="1019" alt="Screenshot 2025-11-13 224602" src="https://github.com/user-attachments/assets/e662dd66-c93f-49fe-a93d-222d0fe8c599" />
+
 <img width="1919" height="1019" alt="Screenshot 2025-11-13 224627" src="https://github.com/user-attachments/assets/5108ef9e-b718-48c6-b35e-c46b19acb337" />
 
 ---
@@ -316,3 +317,4 @@ Menggunakan sistem templating membuat struktur aplikasi **lebih bersih, terpisah
 *View* hanya fokus pada pengolahan data, sedangkan *template* bertanggung jawab terhadap tampilan.
 
 Pendekatan ini adalah praktik umum dalam pengembangan web modern karena meningkatkan efisiensi, keterbacaan, dan kemudahan pengujian aplikasi.
+
