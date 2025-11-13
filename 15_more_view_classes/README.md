@@ -1,86 +1,56 @@
-# **Membuat HTML dengan Templating di Pyramid**
+# Tutorial Pyramid: More With View Classes
 
-## **Deskripsi**
+## Deskripsi
 
-Pada tutorial ini, kita akan mempelajari cara menggunakan **sistem templating** untuk menghasilkan HTML di framework **Pyramid**.
-Dengan sistem ini, kita tidak perlu lagi menulis kode HTML langsung di dalam Python. Sebagai gantinya, kita akan memisahkan **logika program** dan **tampilan** ke dalam file yang berbeda agar struktur aplikasi lebih rapi dan mudah dikelola.
+Tutorial ini membahas cara **mengelompokkan beberapa view ke dalam satu class (view class)** agar dapat berbagi konfigurasi, state (data), dan logika yang sama.
+Pendekatan ini membuat kode aplikasi web menjadi **lebih rapi, terstruktur, dan efisien**.
 
-Sebelumnya, kita membuat HTML secara langsung di dalam fungsi *view*. Pendekatan ini tidak efisien dan sulit dipelihara saat proyek bertambah besar.
-Framework web modern biasanya menggunakan sistem templating agar lebih terorganisir.
+Dalam framework Pyramid, *view* bisa berupa:
 
-Pyramid mendukung berbagai *template engine* seperti **Jinja2**, **Mako**, dan **Chameleon**. Dalam tutorial ini, kita akan menggunakan **pyramid_chameleon** sebagai contoh.
+* Fungsi biasa
+* Objek dengan method `__call__`
+* Sebuah class Python, di mana setiap method-nya bisa dijadikan view dengan menggunakan decorator `@view_config`.
+
+Awalnya views dibuat sebagai fungsi yang berdiri sendiri. Namun jika beberapa views menangani data yang sama (seperti pada form input, edit, dan delete), lebih baik digabungkan dalam satu class.
+
+### Keuntungan menggunakan View Class
+
+* Mengelompokkan views yang saling berhubungan
+* Memusatkan pengaturan konfigurasi agar tidak berulang
+* Mempermudah berbagi data dan fungsi pembantu
+* Membuat struktur kode lebih bersih dan mudah dipelihara
+
+Pyramid juga menyediakan **view predicates** yang dapat menentukan view mana yang dipanggil berdasarkan kondisi tertentu, seperti:
+
+* Jenis permintaan HTTP (GET, POST, dsb.)
+* Parameter form yang dikirim
+* Informasi tambahan dari request
 
 ---
 
-## **Tujuan Pembelajaran**
+## Tujuan
 
-1. Mengaktifkan *add-on* `pyramid_chameleon` pada proyek Pyramid.
-2. Menghasilkan HTML menggunakan file template terpisah.
-3. Menghubungkan template sebagai *renderer* untuk *view*.
-4. Mengubah *view* agar hanya mengembalikan data, bukan HTML langsung.
+* Menggabungkan beberapa view terkait ke dalam satu class
+* Mengatur konfigurasi bersama menggunakan `@view_defaults`
+* Mengarahkan satu route ke beberapa view berdasarkan request
+* Membagikan state dan logika antara views serta templates
 
 ---
 
-## **Langkah-langkah Instalasi**
+## Langkah-Langkah
 
-### **1. Membuat Proyek Baru**
+### 1. Menyalin Proyek Sebelumnya
 
-Gunakan proyek sebelumnya sebagai dasar, lalu buat salinan baru untuk tahap templating:
+Gunakan hasil proyek dari langkah templating:
 
 ```bash
-cd ..; cp -r views templating; cd templating
-```
-
----
-
-### **2. Menambahkan Dependency**
-
-Tambahkan *dependency* `pyramid_chameleon` ke dalam file `templating/setup.py` agar Pyramid bisa menggunakan sistem templating.
-
-```python
-from setuptools import setup
-
-requires = [
-    'pyramid',
-    'pyramid_chameleon',
-    'waitress',
-]
-
-dev_requires = [
-    'pyramid_debugtoolbar',
-    'pytest',
-    'webtest',
-]
-
-setup(
-    name='tutorial',
-    install_requires=requires,
-    extras_require={
-        'dev': dev_requires,
-    },
-    entry_points={
-        'paste.app_factory': [
-            'main = tutorial:main'
-        ],
-    },
-)
-```
-
----
-
-### **3. Menginstal Dependency**
-
-Setelah menambahkan konfigurasi di atas, aktifkan *environment* pengembangan dan jalankan perintah berikut:
-
-```bash
+cd ..; cp -r templating more_view_classes; cd more_view_classes
 $VENV/bin/pip install -e .
 ```
 
----
+### 2. Menambahkan Route
 
-### **4. Konfigurasi Template Engine**
-
-Aktifkan **pyramid_chameleon** dengan menambahkan baris berikut di `tutorial/__init__.py`:
+Edit file `more_view_classes/tutorial/__init__.py`:
 
 ```python
 from pyramid.config import Configurator
@@ -89,84 +59,124 @@ def main(global_config, **settings):
     config = Configurator(settings=settings)
     config.include('pyramid_chameleon')
     config.add_route('home', '/')
-    config.add_route('hello', '/howdy')
+    config.add_route('hello', '/howdy/{first}/{last}')
     config.scan('.views')
     return config.make_wsgi_app()
 ```
 
-Fungsi `config.include('pyramid_chameleon')` akan menghubungkan Pyramid dengan sistem templating Chameleon.
+### 3. Membuat View Class
 
----
-
-### **5. Membuat View**
-
-Selanjutnya, ubah `tutorial/views.py` agar tidak lagi menulis HTML secara langsung.
-Setiap *view* cukup mengembalikan data dalam bentuk dictionary, sementara tampilan HTML akan dihasilkan oleh template.
+File: `more_view_classes/tutorial/views.py`
 
 ```python
-from pyramid.view import view_config
+from pyramid.view import view_config, view_defaults
 
-@view_config(route_name='home', renderer='home.pt')
-def home(request):
-    return {'name': 'Home View'}
+@view_defaults(route_name='hello')
+class TutorialViews:
+    def __init__(self, request):
+        self.request = request
+        self.view_name = 'TutorialViews'
 
-@view_config(route_name='hello', renderer='home.pt')
-def hello(request):
-    return {'name': 'Hello View'}
+    @property
+    def full_name(self):
+        first = self.request.matchdict['first']
+        last = self.request.matchdict['last']
+        return first + ' ' + last
+
+    @view_config(route_name='home', renderer='home.pt')
+    def home(self):
+        return {'page_title': 'Home View'}
+
+    @view_config(renderer='hello.pt')
+    def hello(self):
+        return {'page_title': 'Hello View'}
+
+    @view_config(request_method='POST', renderer='edit.pt')
+    def edit(self):
+        new_name = self.request.params['new_name']
+        return {'page_title': 'Edit View', 'new_name': new_name}
+
+    @view_config(request_method='POST', request_param='form.delete', renderer='delete.pt')
+    def delete(self):
+        print('Deleted')
+        return {'page_title': 'Delete View'}
 ```
 
-Kedua *view* di atas menggunakan template yang sama, yaitu `home.pt`.
+### 4. Template Home
 
----
-
-### **6. Membuat Template**
-
-Buat file baru bernama `tutorial/home.pt` dengan isi berikut:
+File: `more_view_classes/tutorial/home.pt`
 
 ```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Tutorial Pyramid: ${name}</title>
+    <title>${view.view_name} - ${page_title}</title>
 </head>
 <body>
-    <h1>Hi ${name}</h1>
+<h1>${view.view_name} - ${page_title}</h1>
+<p>Go to the <a href="${request.route_url('hello', first='jane', last='doe')}">form</a>.</p>
 </body>
 </html>
 ```
 
-**Penjelasan:**
+### 5. Template Hello
 
-* `${name}` akan otomatis diganti dengan data yang dikirim dari fungsi *view*.
-* File ini menggunakan sintaks dari **Chameleon Template Engine**.
+File: `more_view_classes/tutorial/hello.pt`
 
----
-
-### **7. Konfigurasi Development Mode**
-
-Agar template otomatis *reload* saat diedit, tambahkan pengaturan berikut di file `development.ini`:
-
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>${view.view_name} - ${page_title}</title>
+</head>
+<body>
+<h1>${view.view_name} - ${page_title}</h1>
+<p>Welcome, ${view.full_name}</p>
+<form method="POST" action="${request.current_route_url()}">
+    <input name="new_name"/>
+    <input type="submit" name="form.edit" value="Save"/>
+    <input type="submit" name="form.delete" value="Delete"/>
+</form>
+</body>
+</html>
 ```
-[app:main]
-use = egg:tutorial
-pyramid.reload_templates = true
-pyramid.includes =
-    pyramid_debugtoolbar
 
-[server:main]
-use = egg:waitress#main
-listen = localhost:6543
+### 6. Template Edit
+
+File: `more_view_classes/tutorial/edit.pt`
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>${view.view_name} - ${page_title}</title>
+</head>
+<body>
+<h1>${view.view_name} - ${page_title}</h1>
+<p>You submitted <code>${new_name}</code></p>
+</body>
+</html>
 ```
 
-Dengan pengaturan ini, kamu tidak perlu me-*restart* server setiap kali mengubah template.
+### 7. Template Delete
 
----
+File: `more_view_classes/tutorial/delete.pt`
 
-## **Testing**
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>${view.view_name} - ${page_title}</title>
+</head>
+<body>
+<h1>${view.view_name} - ${page_title}</h1>
+</body>
+</html>
+```
 
-### **Unit Test**
+### 8. Mengedit File Test
 
-Sekarang, pengujian hanya perlu memastikan bahwa *view* mengembalikan data yang benar, bukan HTML.
+File: `more_view_classes/tutorial/tests.py`
 
 ```python
 import unittest
@@ -177,46 +187,25 @@ class TutorialViewTests(unittest.TestCase):
         self.config = testing.setUp()
     def tearDown(self):
         testing.tearDown()
-
     def test_home(self):
-        from .views import home
+        from .views import TutorialViews
         request = testing.DummyRequest()
-        response = home(request)
-        self.assertEqual('Home View', response['name'])
+        inst = TutorialViews(request)
+        response = inst.home()
+        self.assertEqual('Home View', response['page_title'])
 
-    def test_hello(self):
-        from .views import hello
-        request = testing.DummyRequest()
-        response = hello(request)
-        self.assertEqual('Hello View', response['name'])
-```
-
----
-
-### **Functional Test**
-
-Tambahkan juga pengujian untuk memastikan HTML dihasilkan dengan benar oleh template:
-
-```python
 class TutorialFunctionalTests(unittest.TestCase):
     def setUp(self):
         from tutorial import main
         app = main({})
         from webtest import TestApp
         self.testapp = TestApp(app)
-
     def test_home(self):
         res = self.testapp.get('/', status=200)
-        self.assertIn(b'<h1>Hi Home View', res.body)
-
-    def test_hello(self):
-        res = self.testapp.get('/howdy', status=200)
-        self.assertIn(b'<h1>Hi Hello View', res.body)
+        self.assertIn(b'TutorialViews - Home View', res.body)
 ```
 
----
-
-### **Menjalankan Test**
+### 9. Menjalankan Test
 
 Gunakan perintah berikut:
 
@@ -227,94 +216,150 @@ $VENV/bin/pytest tutorial/tests.py -q
 Hasil yang diharapkan:
 
 ```
-....
-4 passed in 0.46 seconds
+2 passed in 0.40 seconds
 ```
 
-Hasil :
-<img width="1241" height="446" alt="Screenshot 2025-11-13 224536" src="https://github.com/user-attachments/assets/cd299396-e9e7-4cfb-88fc-99dbc917b1c3" />
+Hasil:
+<img width="1236" height="443" alt="Screenshot 2025-11-14 002808" src="https://github.com/user-attachments/assets/0d9276c1-e283-4f7c-b323-e63ab8f8ae95" />
 
----
-
-### **Menjalankan Aplikasi**
-
-Jalankan server Pyramid:
+### 10. Menjalankan Aplikasi
 
 ```bash
 $VENV/bin/pserve development.ini --reload
 ```
 
-Buka di browser:
+### 11. Melihat Hasil di Browser
 
-* [http://localhost:6543/](http://localhost:6543/)
-* [http://localhost:6543/howdy](http://localhost:6543/howdy)
+Buka [http://localhost:6543/howdy/jane/doe](http://localhost:6543/howdy/jane/doe)
+Klik **Save** atau **Delete**, lalu lihat hasilnya di terminal.
 
-Hasil: 
-<img width="1919" height="1019" alt="Screenshot 2025-11-13 224602" src="https://github.com/user-attachments/assets/e662dd66-c93f-49fe-a93d-222d0fe8c599" />
+Hasil:
+<img width="1919" height="1021" alt="Screenshot 2025-11-14 002840" src="https://github.com/user-attachments/assets/dc8e3853-5175-4ab5-9acf-47d4bde5eb09" />
 
-<img width="1919" height="1019" alt="Screenshot 2025-11-13 224627" src="https://github.com/user-attachments/assets/5108ef9e-b718-48c6-b35e-c46b19acb337" />
-
----
-
-## **Analisis**
-
-Setelah menggunakan sistem templating, kode menjadi jauh lebih bersih.
-Fungsi *view* kini hanya fokus pada **logika dan data**, sedangkan tampilan HTML dikelola oleh template.
-
-Perhatikan bahwa kita menggunakan **satu template yang sama** untuk dua *view* berbeda (`home` dan `hello`).
-Pendekatan ini membuat kode lebih efisien dan mudah dikelola.
+<img width="1919" height="1020" alt="Screenshot 2025-11-14 002854" src="https://github.com/user-attachments/assets/b1bd7a58-a2a5-479e-b8e8-65cb4f326718" />
 
 ---
 
-### **Keuntungan Menggunakan Templating**
+## Analisis
 
-1. **Pemisahan Tanggung Jawab (Separation of Concerns)**
+### 1. Pengelompokan View
 
-   * *View* berisi logika program
-   * Template mengatur tampilan HTML
-   * Kode lebih terstruktur dan mudah dikembangkan
+Empat views saling terhubung:
 
-2. **Dapat Digunakan Ulang (Reusable)**
+1. **Home View** – diakses dari `/`
+2. **Hello View** – diakses dari `/howdy/jane/doe`
+3. **Edit View** – dipanggil saat form dikirim (POST)
+4. **Delete View** – dipanggil saat tombol Delete ditekan
 
-   * Satu file template bisa digunakan untuk banyak *view*
-   * Menghemat waktu dan mencegah duplikasi kode
+### 2. View Predicates
 
-3. **Testing Lebih Mudah**
+View dipilih berdasarkan:
 
-   * Pengujian fokus pada data, bukan HTML mentah
-   * Test menjadi lebih sederhana dan tahan terhadap perubahan tampilan
+* Jenis permintaan HTTP (`GET`, `POST`)
+* Parameter yang dikirim (`form.delete`, dsb.)
 
-4. **Fleksibilitas Tinggi**
+### 3. Konfigurasi Terpusat
 
-   * Pyramid mendukung berbagai *template engine*
-   * Developer bebas menggunakan Chameleon, Jinja2, atau Mako
+Dengan `@view_defaults`, semua view dalam class bisa memiliki pengaturan dasar yang sama dan hanya diubah jika diperlukan.
 
-5. **Pengalaman Pengembangan Lebih Baik**
+### 4. Berbagi State dan Logic
 
-   * Template otomatis *reload* saat diedit
-   * Tidak perlu me-*restart* server setiap kali mengubah tampilan
+Nilai seperti `view_name` dan `full_name` bisa digunakan oleh semua method dan juga diakses di template, sehingga kode lebih efisien.
+
+### 5. Dynamic URL Generation
+
+Daripada menulis URL manual:
+
+```html
+<a href="/howdy/jane/doe">Howdy</a>
+```
+
+Gunakan cara dinamis:
+
+```html
+<a href="${request.route_url('hello', first='jane', last='doe')}">form</a>
+```
+
+Keuntungan:
+
+* Lebih fleksibel jika route berubah
+* Lebih aman dan mudah dirawat
 
 ---
 
-### **Konsep Penting**
+## Ekstra Kredit
 
-**Renderer:**
+### 1. Mengapa Bisa Mengakses `${view.full_name}` Tanpa `()`?
 
-* Menghubungkan fungsi *view* dengan template HTML
-* Data dari *view* (dalam bentuk dictionary) otomatis diteruskan ke template
+Karena `full_name` menggunakan decorator `@property`.
+Dengan property, method bisa dipanggil seperti atribut biasa tanpa tanda kurung.
+Contoh:
 
-**Data Contract:**
+```python
+@property
+def full_name(self):
+    return first + ' ' + last
+```
 
-* *View* hanya mengembalikan data
-* Template menampilkan data tersebut di halaman web
-* Menciptakan kontrak yang jelas antara logika dan tampilan
+### 2. Mengapa Edit View Tidak Menangkap POST dari Delete?
+
+Keduanya menggunakan `POST`, tetapi **Delete View** memiliki syarat tambahan (`request_param='form.delete'`).
+Karena itu Pyramid akan memilih Delete View jika parameter tersebut ada.
+Pyramid akan menjalankan view dengan konfigurasi yang paling spesifik.
+
+### 3. Apakah Nilai Property Bisa Di-cache?
+
+Ya. Pyramid menyediakan decorator `@reify` untuk menyimpan hasil perhitungan pertama agar tidak dihitung ulang:
+
+```python
+from pyramid.decorator import reify
+
+@reify
+def full_name(self):
+    return first + ' ' + last
+```
+
+Perbedaan:
+
+* `@property`: dihitung ulang setiap kali diakses
+* `@reify`: dihitung sekali, lalu disimpan
+
+### 4. Dapatkah Satu View Memiliki Beberapa Route?
+
+Bisa. Satu view dapat dihubungkan ke beberapa route:
+
+```python
+@view_config(route_name='hello', renderer='hello.pt')
+@view_config(route_name='greet', renderer='hello.pt')
+def hello(self):
+    return {'page_title': 'Hello View'}
+```
+
+### 5. Perbedaan `route_path` dan `route_url`
+
+* **`request.route_url`** menghasilkan URL lengkap (dengan domain), contoh:
+
+  ```
+  http://localhost:6543/howdy/jane/doe
+  ```
+* **`request.route_path`** hanya menghasilkan path:
+
+  ```
+  /howdy/jane/doe
+  ```
+
+Gunakan `route_url` untuk tautan keluar (misalnya email), dan `route_path` untuk navigasi internal di aplikasi.
 
 ---
 
-## **Kesimpulan**
+## Kesimpulan
 
-Menggunakan sistem templating membuat struktur aplikasi **lebih bersih, terpisah, dan mudah dipelihara**.
-*View* hanya fokus pada pengolahan data, sedangkan *template* bertanggung jawab terhadap tampilan.
+Dengan menggunakan **View Classes**, aplikasi Pyramid menjadi:
 
-Pendekatan ini adalah praktik umum dalam pengembangan web modern karena meningkatkan efisiensi, keterbacaan, dan kemudahan pengujian aplikasi.
+1. Lebih terstruktur dan mudah dibaca
+2. Konfigurasinya terpusat dengan `@view_defaults`
+3. Logika bisa dibagi antar views
+4. Routing lebih fleksibel dengan view predicates
+5. URL lebih aman dan dinamis
 
+Pendekatan ini sangat berguna untuk proyek besar agar pengelolaan kode tetap rapi dan konsisten.
