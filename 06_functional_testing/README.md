@@ -3,7 +3,7 @@
 ## Pendahuluan
 
 Unit testing berguna untuk menguji bagian-bagian kecil dari aplikasi secara terpisah. Tapi dalam aplikasi web, kita juga perlu memastikan bahwa tampilan (template) dan keseluruhan sistem berjalan dengan baik.
-Di sinilah **functional testing** digunakan — yaitu cara menguji aplikasi web secara penuh dari awal sampai akhir.
+Di sinilah **functional testing** digunakan yaitu cara menguji aplikasi web secara penuh dari awal sampai akhir.
 
 **WebTest** adalah library Python untuk melakukan functional testing. Dengan WebTest, kita bisa mensimulasikan permintaan HTTP (seperti yang dilakukan browser) langsung ke aplikasi WSGI.
 Kelebihannya, WebTest tidak perlu menyalakan server HTTP sungguhan, jadi pengujiannya tetap cepat dan cocok untuk TDD (Test-Driven Development).
