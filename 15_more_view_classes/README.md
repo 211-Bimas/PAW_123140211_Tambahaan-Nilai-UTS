@@ -48,6 +48,8 @@ cd ..; cp -r templating more_view_classes; cd more_view_classes
 $VENV/bin/pip install -e .
 ```
 
+---
+
 ### 2. Menambahkan Route
 
 Edit file `more_view_classes/tutorial/__init__.py`:
@@ -63,6 +65,8 @@ def main(global_config, **settings):
     config.scan('.views')
     return config.make_wsgi_app()
 ```
+
+---
 
 ### 3. Membuat View Class
 
@@ -102,6 +106,8 @@ class TutorialViews:
         return {'page_title': 'Delete View'}
 ```
 
+---
+
 ### 4. Template Home
 
 File: `more_view_classes/tutorial/home.pt`
@@ -118,6 +124,8 @@ File: `more_view_classes/tutorial/home.pt`
 </body>
 </html>
 ```
+
+---
 
 ### 5. Template Hello
 
@@ -141,6 +149,8 @@ File: `more_view_classes/tutorial/hello.pt`
 </html>
 ```
 
+---
+
 ### 6. Template Edit
 
 File: `more_view_classes/tutorial/edit.pt`
@@ -158,6 +168,8 @@ File: `more_view_classes/tutorial/edit.pt`
 </html>
 ```
 
+---
+
 ### 7. Template Delete
 
 File: `more_view_classes/tutorial/delete.pt`
@@ -173,6 +185,8 @@ File: `more_view_classes/tutorial/delete.pt`
 </body>
 </html>
 ```
+
+---
 
 ### 8. Mengedit File Test
 
@@ -205,6 +219,8 @@ class TutorialFunctionalTests(unittest.TestCase):
         self.assertIn(b'TutorialViews - Home View', res.body)
 ```
 
+---
+
 ### 9. Menjalankan Test
 
 Gunakan perintah berikut:
@@ -222,11 +238,15 @@ Hasil yang diharapkan:
 Hasil:
 <img width="1236" height="443" alt="Screenshot 2025-11-14 002808" src="https://github.com/user-attachments/assets/0d9276c1-e283-4f7c-b323-e63ab8f8ae95" />
 
+---
+
 ### 10. Menjalankan Aplikasi
 
 ```bash
 $VENV/bin/pserve development.ini --reload
 ```
+
+---
 
 ### 11. Melihat Hasil di Browser
 
