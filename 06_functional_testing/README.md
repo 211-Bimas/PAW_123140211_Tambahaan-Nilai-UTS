@@ -1,6 +1,6 @@
 # Functional Testing dengan WebTest di Pyramid
 
-## Pendahuluan
+## Deskripsi
 
 Unit testing berguna untuk menguji bagian-bagian kecil dari aplikasi secara terpisah. Tapi dalam aplikasi web, kita juga perlu memastikan bahwa tampilan (template) dan keseluruhan sistem berjalan dengan baik.
 Di sinilah **functional testing** digunakan yaitu cara menguji aplikasi web secara penuh dari awal sampai akhir.
@@ -190,3 +190,4 @@ Dengan WebTest, kita bisa:
 * Mengecek hasil HTML dari template
 * Menjalankan test cepat dan efisien
 * Menulis test yang mudah dibaca dan dipelihara
+
