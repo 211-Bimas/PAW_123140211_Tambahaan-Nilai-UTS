@@ -1,276 +1,194 @@
-# Mengorganisir Views dengan View Classes
+# Mengelola File Statis (CSS, JS, dan Gambar)
 
 ## Deskripsi
 
-Tutorial ini menjelaskan cara mengubah *view functions* menjadi *view classes* pada **Pyramid Framework**.
-Dengan menggunakan *view classes*, beberapa *view* yang saling berhubungan dapat digabungkan ke dalam satu kelas, sehingga kode menjadi lebih rapi, mudah dikelola, dan efisien.
-
-Sebelumnya, semua *view* dibuat dalam bentuk fungsi yang terpisah.
-Namun dalam aplikasi nyata, sering kali beberapa *view* bekerja dengan data yang sama atau memiliki tujuan yang mirip, misalnya:
-
-* Menampilkan data dari sumber yang sama
-* Menangani berbagai operasi pada REST API
-* Membutuhkan konfigurasi atau fungsi bantu (*helper function*) yang sama
-
-### Keuntungan Menggunakan View Classes
-
-1. **Mengelompokkan Views yang Berkaitan**
-   Semua *view* dengan fungsi serupa dapat disatukan dalam satu kelas.
-2. **Menyederhanakan Konfigurasi**
-   Pengaturan yang berulang dapat dipusatkan di tingkat kelas.
-3. **Berbagi Data dan Fungsi Bantu**
-   Data atau fungsi yang sama bisa digunakan oleh beberapa *view* di dalam satu kelas.
-
----
+Pada bagian ini, kita akan belajar bagaimana cara membuat Pyramid melayani file statis seperti **CSS**, **JavaScript**, dan **gambar** dari direktori tertentu.
+File-file ini membantu mempercantik tampilan dan menambah fungsi pada halaman web.
 
 ## Tujuan
 
-1. Mengelompokkan *view* yang berhubungan ke dalam satu *class*.
-2. Menyatukan pengaturan menggunakan `@view_defaults`.
-3. Memahami bagaimana *view class* dibuat dan digunakan di Pyramid.
+* Menyediakan direktori yang berisi file statis agar bisa diakses melalui URL.
+* Menggunakan fitur Pyramid untuk membuat URL otomatis menuju file-file statis tersebut.
 
----
-
-## Langkah-langkah Implementasi
+## Langkah-langkah
 
 ### 1. Menyalin Proyek Sebelumnya
 
+Salin proyek `view_classes` ke proyek baru bernama `static_assets`:
+
 ```bash
-cd ..; cp -r templating view_classes; cd view_classes
+cd ..; cp -r view_classes static_assets; cd static_assets
 $VENV/bin/pip install -e .
 ```
 
+Langkah ini membuat salinan proyek sebelumnya agar kita bisa menambahkan fitur file statis tanpa mengubah proyek lama.
+
 ---
 
-### 2. Membuat View Class
+### 2. Menambahkan Static View pada Konfigurasi
 
-Pada file `view_classes/tutorial/views.py`, ubah fungsi *view* menjadi metode di dalam sebuah kelas.
+Tambahkan satu baris konfigurasi di file `static_assets/tutorial/__init__.py`:
 
 ```python
-from pyramid.view import (
-    view_config,
-    view_defaults
-)
+from pyramid.config import Configurator
 
-@view_defaults(renderer='home.pt')
-class TutorialViews:
-    def __init__(self, request):
-        self.request = request
 
-    @view_config(route_name='home')
-    def home(self):
-        return {'name': 'Home View'}
-
-    @view_config(route_name='hello')
-    def hello(self):
-        return {'name': 'Hello View'}
+def main(global_config, **settings):
+    config = Configurator(settings=settings)
+    config.include('pyramid_chameleon')
+    config.add_route('home', '/')
+    config.add_route('hello', '/howdy')
+    config.add_static_view(name='static', path='tutorial:static')  # Tambahan baru
+    config.scan('.views')
+    return config.make_wsgi_app()
 ```
 
-#### Penjelasan Kode
-
-* **`@view_defaults(renderer='home.pt')`**
-  Digunakan untuk memberikan pengaturan umum di tingkat kelas.
-  Semua metode di dalam kelas ini otomatis memakai renderer `home.pt`, sehingga tidak perlu ditulis berulang di setiap `@view_config`.
-
-* **`__init__(self, request)`**
-  Fungsi *constructor* yang dijalankan otomatis oleh Pyramid.
-  Parameter `request` berisi informasi permintaan (seperti data user, URL, dan lain-lain).
-
-* **Metode `home()` dan `hello()`**
-  Adalah dua *view* yang sebelumnya berbentuk fungsi, kini menjadi metode dalam satu kelas.
-  Keduanya mengembalikan *dictionary* yang akan digunakan oleh template.
+Bagian `config.add_static_view` berfungsi agar Pyramid bisa melayani file statis dari folder `static` di dalam package `tutorial`.
 
 ---
 
-### 3. Memperbarui Unit Test
+### 3. Menambahkan Link CSS pada Template
 
-Edit file `view_classes/tutorial/tests.py` agar menggunakan *view class*.
+Edit file `static_assets/tutorial/home.pt` dan tambahkan tag `<link>` di bagian `<head>` agar file CSS bisa digunakan:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Quick Tutorial: ${name}</title>
+    <link rel="stylesheet"
+          href="${request.static_url('tutorial:static/app.css') }"/>
+</head>
+<body>
+<h1>Hi ${name}</h1>
+</body>
+</html>
+```
+
+Fungsi `request.static_url()` digunakan untuk membuat URL otomatis ke file CSS sesuai konfigurasi aplikasi.
+
+---
+
+### 4. Membuat File CSS
+
+Buat folder `static` di dalam `tutorial`, lalu tambahkan file `app.css`:
+
+```css
+body {
+    margin: 2em;
+    font-family: sans-serif;
+}
+```
+
+File ini akan mengatur tampilan teks di halaman web agar lebih rapi dan mudah dibaca.
+
+---
+
+### 5. Menambahkan Functional Test
+
+Tambahkan pengujian berikut untuk memastikan file CSS bisa diakses dengan benar:
 
 ```python
-import unittest
-from pyramid import testing
-
-class TutorialViewTests(unittest.TestCase):
-    def setUp(self):
-        self.config = testing.setUp()
-
-    def tearDown(self):
-        testing.tearDown()
-
-    def test_home(self):
-        from .views import TutorialViews
-        request = testing.DummyRequest()
-        inst = TutorialViews(request)
-        response = inst.home()
-        self.assertEqual('Home View', response['name'])
-
-    def test_hello(self):
-        from .views import TutorialViews
-        request = testing.DummyRequest()
-        inst = TutorialViews(request)
-        response = inst.hello()
-        self.assertEqual('Hello View', response['name'])
+def test_css(self):
+    res = self.testapp.get('/static/app.css', status=200)
+    self.assertIn(b'body', res.body)
 ```
 
-#### Pola Pengujian View Class
-
-1. Import kelas *view*.
-2. Buat *DummyRequest* untuk meniru permintaan pengguna.
-3. Buat instance dari kelas tersebut.
-4. Jalankan metode yang ingin diuji dan periksa hasilnya.
+Test ini memastikan server benar-benar dapat memberikan file `app.css` saat diminta melalui URL `/static/app.css`.
 
 ---
 
-### 4. Menjalankan Test
+### 6. Menjalankan Test
+
+Jalankan pengujian menggunakan perintah berikut:
 
 ```bash
 $VENV/bin/pytest tutorial/tests.py -q
 ```
 
-Jika berhasil, hasilnya akan seperti ini:
+Jika berhasil, hasil test akan menampilkan pesan seperti berikut:
 
 ```
 ....
-4 passed in 0.34 seconds
+5 passed in 0.50 seconds
 ```
 
-Hasil :
-<img width="1244" height="447" alt="Screenshot 2025-11-13 230352" src="https://github.com/user-attachments/assets/f562d35e-5108-47b5-84d2-5ecbf7a2d63e" />
+Hasil:
+<img width="1241" height="445" alt="Screenshot 2025-11-14 000142" src="https://github.com/user-attachments/assets/ff8978f6-f5ad-4c02-8486-c360ca1085c7" />
 
 ---
 
-### 5. Menjalankan Aplikasi
+### 7. Menjalankan Aplikasi
+
+Gunakan perintah berikut untuk menjalankan aplikasi Pyramid:
 
 ```bash
 $VENV/bin/pserve development.ini --reload
 ```
 
-Buka browser dan akses:
-
-* [http://localhost:6543/](http://localhost:6543/)
-* [http://localhost:6543/howdy](http://localhost:6543/howdy)
-
-**Output yang ditampilkan di browser:**
-
-```
-Hi Home View
-Hi Hello View
-```
+Buka **[http://localhost:6543/](http://localhost:6543/)** di browser.
+Jika CSS berhasil dimuat, kamu akan melihat perubahan tampilan font pada halaman web.
 
 Hasil:
-<img width="1919" height="1019" alt="Screenshot 2025-11-13 230425" src="https://github.com/user-attachments/assets/ba9f68c9-df16-4c81-aaae-f966553cf899" />
-
-<img width="1919" height="1019" alt="Screenshot 2025-11-13 230439" src="https://github.com/user-attachments/assets/b416aeeb-550b-4483-a65b-a18fbc568723" />
+<img width="1919" height="1021" alt="Screenshot 2025-11-14 000204" src="https://github.com/user-attachments/assets/31c5cfb5-540a-4a07-8fb3-b10942e4737f" />
 
 ---
 
 ## Analisis
 
-Pada tahap ini, tidak ada fitur baru yang ditambahkan.
-Kita hanya mengubah struktur kode agar lebih terorganisir.
+### Pemetaaan File Statis
 
-Sebelumnya, setiap *view* berdiri sendiri, tetapi sekarang dua *view* tersebut digabungkan ke dalam satu kelas dengan `@view_defaults`.
-Hal ini membuat kode lebih mudah dibaca dan dirawat.
+Konfigurasi `config.add_static_view` membuat Pyramid memetakan permintaan ke `http://localhost:6543/static/` agar diarahkan ke folder `tutorial/static`.
+Folder ini berisi file `app.css` yang digunakan di template.
 
-### Sebelum (View Functions)
+### Menggunakan Helper Pyramid
 
-```python
-@view_config(route_name='home', renderer='home.pt')
-def home(request):
-    return {'name': 'Home View'}
+Di template, kita bisa saja menulis:
 
-@view_config(route_name='hello', renderer='home.pt')
-def hello(request):
-    return {'name': 'Hello View'}
+```html
+<link rel="stylesheet" href="/static/app.css">
 ```
 
-**Masalah:**
-
-* Pengaturan `renderer` ditulis berulang.
-* Setiap *view* terpisah, meskipun fungsinya mirip.
-* Sulit berbagi data atau fungsi bantu.
-
-### Sesudah (View Class)
+Namun cara ini tidak fleksibel. Jika struktur direktori berubah atau situs dipindahkan ke lokasi lain, link bisa menjadi salah.
+Dengan menggunakan:
 
 ```python
-@view_defaults(renderer='home.pt')
-class TutorialViews:
-    def __init__(self, request):
-        self.request = request
-
-    @view_config(route_name='home')
-    def home(self):
-        return {'name': 'Home View'}
-
-    @view_config(route_name='hello')
-    def hello(self):
-        return {'name': 'Hello View'}
+${request.static_url('tutorial:static/app.css')}
 ```
 
-**Keuntungan:**
-
-* Konfigurasi umum hanya ditulis sekali.
-* Semua *view* yang berkaitan berada dalam satu tempat.
-* Dapat berbagi data atau metode bantu dengan mudah.
+URL akan dibuat otomatis sesuai konfigurasi yang sudah ditetapkan, sehingga aman dari perubahan struktur.
 
 ---
 
-## Konsep Penting
+## Perbandingan Fungsi URL
 
-### 1. View Defaults
+| Fungsi                  | Hasil                                                                    | Kegunaan                                            |
+| ----------------------- | ------------------------------------------------------------------------ | --------------------------------------------------- |
+| `request.static_url()`  | Menghasilkan URL lengkap, contoh: `http://localhost:6543/static/app.css` | Cocok untuk link eksternal atau API                 |
+| `request.static_path()` | Menghasilkan path relatif, contoh: `/static/app.css`                     | Cocok untuk penggunaan internal dalam satu aplikasi |
 
-`@view_defaults` digunakan untuk memberikan pengaturan umum pada semua metode dalam satu kelas.
-Misalnya:
-
-* `renderer` → menentukan template default.
-* `permission` → menentukan hak akses default.
-
-### 2. Dependency Injection
-
-Pyramid otomatis memberikan `request` ke dalam *constructor*, sehingga setiap metode bisa mengakses data permintaan melalui `self.request`.
-
-### 3. Instance Variables
-
-Kita dapat menyimpan informasi di dalam kelas agar bisa digunakan oleh beberapa metode:
+Contoh:
 
 ```python
-def __init__(self, request):
-    self.request = request
-    self.user = request.authenticated_userid
+${request.static_url('tutorial:static/app.css')}
+# Hasil: http://localhost:6543/static/app.css
+
+${request.static_path('tutorial:static/app.css')}
+# Hasil: /static/app.css
 ```
 
----
-
-## Kapan Sebaiknya Menggunakan View Class?
-
-Gunakan *view class* jika:
-
-* Beberapa *view* menggunakan data yang sama.
-* Membuat REST API dengan berbagai operasi (GET, POST, PUT, DELETE).
-* Ada konfigurasi atau kode yang berulang.
-* Ingin menulis kode yang lebih rapi dan mudah diuji.
-
-Gunakan *view function* jika:
-
-* *View* sederhana dan berdiri sendiri.
-* Tidak ada konfigurasi berulang.
-* Kode kecil dan tidak saling bergantung.
-
----
-
-## Catatan Penting
-
-1. Gunakan nama kelas dengan akhiran `Views` (contoh: `UserViews`, `AdminViews`).
-2. Satu kelas sebaiknya menangani satu fitur utama.
-3. Hindari operasi berat di dalam `__init__()`.
-4. Saat pengujian, selalu buat instance menggunakan `DummyRequest`.
-5. Tambahkan komentar untuk menjelaskan fungsi setiap metode.
+Gunakan `request.static_path()` jika situs hanya berjalan secara lokal, dan `request.static_url()` bila perlu URL lengkap.
 
 ---
 
 ## Kesimpulan
 
-Menggunakan *view classes* membuat kode Pyramid lebih terstruktur dan mudah dirawat.
-Dengan `@view_defaults`, pengaturan berulang bisa dipusatkan, dan berbagai *view* yang saling berkaitan dapat dikelompokkan dalam satu kelas.
+Dalam tutorial ini, kita telah mempelajari cara:
 
-Langkah ini mungkin terlihat kecil, tetapi sangat berguna ketika aplikasi berkembang menjadi lebih kompleks.
+1. Menambahkan konfigurasi `config.add_static_view` untuk melayani file statis.
+2. Membuat folder khusus untuk CSS, JS, dan gambar.
+3. Menghubungkan file CSS ke template dengan `request.static_url()`.
+4. Menjalankan pengujian untuk memastikan file statis berfungsi.
+5. Memahami perbedaan antara `static_url` dan `static_path`.
+
+Dengan langkah-langkah ini, aplikasi Pyramid dapat menampilkan file statis dengan cara yang **fleksibel, efisien, dan mudah diatur**.
