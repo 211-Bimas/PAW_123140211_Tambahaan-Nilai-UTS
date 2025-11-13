@@ -1,56 +1,75 @@
-# Mengorganisir Views dengan View Classes
+# Menyalurkan URL ke Views dengan Routing
 
 ## Deskripsi
 
-Tutorial ini menjelaskan cara mengubah *view functions* menjadi *view classes* pada **Pyramid Framework**.
-Dengan menggunakan *view classes*, beberapa *view* yang saling berhubungan dapat digabungkan ke dalam satu kelas, sehingga kode menjadi lebih rapi, mudah dikelola, dan efisien.
+Tutorial ini menjelaskan cara kerja **routing** di Pyramid Framework untuk mencocokkan pola URL dengan fungsi atau kelas view. Routing memungkinkan aplikasi mengenali bagian dari URL sebagai data dinamis yang dapat digunakan di dalam kode.
 
-Sebelumnya, semua *view* dibuat dalam bentuk fungsi yang terpisah.
-Namun dalam aplikasi nyata, sering kali beberapa *view* bekerja dengan data yang sama atau memiliki tujuan yang mirip, misalnya:
+Dalam pengembangan web modern, URL tidak hanya berfungsi sebagai alamat halaman, tetapi juga sebagai **sumber data** yang dapat dikirim ke server. Contoh penggunaan umum:
 
-* Menampilkan data dari sumber yang sama
-* Menangani berbagai operasi pada REST API
-* Membutuhkan konfigurasi atau fungsi bantu (*helper function*) yang sama
+* `/users/42` – menampilkan profil pengguna dengan ID 42
+* `/blog/2025/11/artikel-routing` – menampilkan artikel blog tertentu
+* `/products/laptop/macbook-pro` – menampilkan detail produk berdasarkan kategori dan nama
 
-### Keuntungan Menggunakan View Classes
+### Mengapa Routing Dipisahkan dari View?
 
-1. **Mengelompokkan Views yang Berkaitan**
-   Semua *view* dengan fungsi serupa dapat disatukan dalam satu kelas.
-2. **Menyederhanakan Konfigurasi**
-   Pengaturan yang berulang dapat dipusatkan di tingkat kelas.
-3. **Berbagi Data dan Fungsi Bantu**
-   Data atau fungsi yang sama bisa digunakan oleh beberapa *view* di dalam satu kelas.
+Pyramid secara **sengaja memisahkan** konfigurasi route dan view untuk memberikan:
 
----
+* **Kendali penuh terhadap urutan route** (explicit ordering)
+* **Fleksibilitas tinggi** dalam mengatur URL
+* **Kemudahan testing dan pemeliharaan** karena struktur yang terpisah dan jelas
+
+Dengan pendekatan ini, developer dapat menyesuaikan desain URL tanpa harus mengubah logika view.
 
 ## Tujuan
 
-1. Mengelompokkan *view* yang berhubungan ke dalam satu *class*.
-2. Menyatukan pengaturan menggunakan `@view_defaults`.
-3. Memahami bagaimana *view class* dibuat dan digunakan di Pyramid.
+1. Membuat route dengan pola URL yang berisi parameter dinamis.
+2. Mengambil data dari URL melalui `matchdict`.
+3. Menggunakan data tersebut di dalam view.
+4. Menguji fungsi routing menggunakan unit dan functional tests.
 
 ---
 
 ## Langkah-langkah Implementasi
 
-### 1. Menyalin Proyek Sebelumnya
+### 1. Setup Proyek
 
 ```bash
-cd ..; cp -r templating view_classes; cd view_classes
+cd ..
+cp -r view_classes routing
+cd routing
 $VENV/bin/pip install -e .
 ```
 
 ---
 
-### 2. Membuat View Class
+### 2. Menambahkan Route dengan Replacement Pattern
 
-Pada file `view_classes/tutorial/views.py`, ubah fungsi *view* menjadi metode di dalam sebuah kelas.
+Edit file `routing/tutorial/__init__.py`
 
 ```python
-from pyramid.view import (
-    view_config,
-    view_defaults
-)
+config.add_route('home', '/howdy/{first}/{last}')
+```
+
+**Penjelasan:**
+
+* `/howdy/` → bagian statis dari URL
+* `{first}` dan `{last}` → variabel yang nilainya diambil dari URL
+
+**Contoh hasil pencocokan:**
+
+| URL                | `first` | `last`  |
+| ------------------ | ------- | ------- |
+| `/howdy/jane/doe`  | `jane`  | `doe`   |
+| `/howdy/amy/smith` | `amy`   | `smith` |
+
+---
+
+### 3. Membuat View
+
+Edit file `routing/tutorial/views.py`
+
+```python
+from pyramid.view import view_config, view_defaults
 
 @view_defaults(renderer='home.pt')
 class TutorialViews:
@@ -59,218 +78,266 @@ class TutorialViews:
 
     @view_config(route_name='home')
     def home(self):
-        return {'name': 'Home View'}
-
-    @view_config(route_name='hello')
-    def hello(self):
-        return {'name': 'Hello View'}
+        first = self.request.matchdict['first']
+        last = self.request.matchdict['last']
+        return {
+            'name': 'Home View',
+            'first': first,
+            'last': last
+        }
 ```
 
-#### Penjelasan Kode
+**Penjelasan:**
 
-* **`@view_defaults(renderer='home.pt')`**
-  Digunakan untuk memberikan pengaturan umum di tingkat kelas.
-  Semua metode di dalam kelas ini otomatis memakai renderer `home.pt`, sehingga tidak perlu ditulis berulang di setiap `@view_config`.
-
-* **`__init__(self, request)`**
-  Fungsi *constructor* yang dijalankan otomatis oleh Pyramid.
-  Parameter `request` berisi informasi permintaan (seperti data user, URL, dan lain-lain).
-
-* **Metode `home()` dan `hello()`**
-  Adalah dua *view* yang sebelumnya berbentuk fungsi, kini menjadi metode dalam satu kelas.
-  Keduanya mengembalikan *dictionary* yang akan digunakan oleh template.
+* `self.request.matchdict` menyimpan data hasil ekstraksi dari URL.
+* Nilai `first` dan `last` diambil dari nama parameter dalam `{}`.
+* Dictionary yang dikembalikan akan diteruskan ke template untuk dirender.
 
 ---
 
-### 3. Memperbarui Unit Test
+### 4. Membuat Template
 
-Edit file `view_classes/tutorial/tests.py` agar menggunakan *view class*.
+Buat file `routing/tutorial/home.pt`
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Quick Tutorial: ${name}</title>
+</head>
+<body>
+    <h1>${name}</h1>
+    <p>First: ${first}, Last: ${last}</p>
+</body>
+</html>
+```
+
+**Penjelasan:**
+Template menggunakan variabel `${first}` dan `${last}` dari dictionary yang dikembalikan view.
+
+---
+
+### 5. Membuat Tests
+
+Edit file `routing/tutorial/tests.py`
+
+#### Unit Test
 
 ```python
-import unittest
-from pyramid import testing
-
-class TutorialViewTests(unittest.TestCase):
-    def setUp(self):
-        self.config = testing.setUp()
-
-    def tearDown(self):
-        testing.tearDown()
-
-    def test_home(self):
-        from .views import TutorialViews
-        request = testing.DummyRequest()
-        inst = TutorialViews(request)
-        response = inst.home()
-        self.assertEqual('Home View', response['name'])
-
-    def test_hello(self):
-        from .views import TutorialViews
-        request = testing.DummyRequest()
-        inst = TutorialViews(request)
-        response = inst.hello()
-        self.assertEqual('Hello View', response['name'])
+request = testing.DummyRequest()
+request.matchdict['first'] = 'First'
+request.matchdict['last'] = 'Last'
+inst = TutorialViews(request)
+response = inst.home()
+self.assertEqual(response['first'], 'First')
+self.assertEqual(response['last'], 'Last')
 ```
 
-#### Pola Pengujian View Class
+* Menggunakan `DummyRequest()` untuk mensimulasikan request.
+* `matchdict` diisi manual untuk meniru data dari URL.
 
-1. Import kelas *view*.
-2. Buat *DummyRequest* untuk meniru permintaan pengguna.
-3. Buat instance dari kelas tersebut.
-4. Jalankan metode yang ingin diuji dan periksa hasilnya.
+#### Functional Test
+
+```python
+res = self.testapp.get('/howdy/Jane/Doe', status=200)
+self.assertIn(b'Jane', res.body)
+self.assertIn(b'Doe', res.body)
+```
+
+* Melakukan request nyata ke aplikasi.
+* Memastikan routing dan view bekerja dari ujung ke ujung.
 
 ---
 
-### 4. Menjalankan Test
+### 6. Menjalankan Tests
 
 ```bash
 $VENV/bin/pytest tutorial/tests.py -q
 ```
 
-Jika berhasil, hasilnya akan seperti ini:
+Jika berhasil, hasilnya:
 
 ```
-....
-4 passed in 0.34 seconds
+..
+2 passed in 0.39 seconds
 ```
 
-Hasil :
-<img width="1244" height="447" alt="Screenshot 2025-11-13 230352" src="https://github.com/user-attachments/assets/f562d35e-5108-47b5-84d2-5ecbf7a2d63e" />
+Hasil:
+<img width="1241" height="448" alt="Screenshot 2025-11-13 233104" src="https://github.com/user-attachments/assets/b16411ad-e4c9-4b0c-8900-893f8ccfe7b5" />
 
 ---
 
-### 5. Menjalankan Aplikasi
+### 7. Menjalankan Aplikasi
 
 ```bash
 $VENV/bin/pserve development.ini --reload
 ```
 
-Buka browser dan akses:
+**Coba akses:**
 
-* [http://localhost:6543/](http://localhost:6543/)
-* [http://localhost:6543/howdy](http://localhost:6543/howdy)
+* [http://localhost:6543/howdy/amy/smith](http://localhost:6543/howdy/amy/smith)
+* [http://localhost:6543/howdy/john/doe](http://localhost:6543/howdy/john/doe)
 
-**Output yang ditampilkan di browser:**
+**Tampilan di browser:**
 
 ```
-Hi Home View
-Hi Hello View
+First: amy, Last: smith
 ```
 
 Hasil:
-<img width="1919" height="1019" alt="Screenshot 2025-11-13 230425" src="https://github.com/user-attachments/assets/ba9f68c9-df16-4c81-aaae-f966553cf899" />
-
-<img width="1919" height="1019" alt="Screenshot 2025-11-13 230439" src="https://github.com/user-attachments/assets/b416aeeb-550b-4483-a65b-a18fbc568723" />
+<img width="1919" height="1020" alt="Screenshot 2025-11-13 233135" src="https://github.com/user-attachments/assets/ebb44e80-9397-4a10-9cc2-85a50d182da7" />
 
 ---
 
 ## Analisis
 
-Pada tahap ini, tidak ada fitur baru yang ditambahkan.
-Kita hanya mengubah struktur kode agar lebih terorganisir.
+### Cara Kerja Routing
 
-Sebelumnya, setiap *view* berdiri sendiri, tetapi sekarang dua *view* tersebut digabungkan ke dalam satu kelas dengan `@view_defaults`.
-Hal ini membuat kode lebih mudah dibaca dan dirawat.
+1. **User mengakses URL:** `/howdy/amy/smith`
+2. **Pyramid Router mencari route yang cocok:**
+   `/howdy/{first}/{last}`
+3. **Nilai dari URL diambil dan dimasukkan ke `matchdict`:**
 
-### Sebelum (View Functions)
+   ```python
+   request.matchdict = {'first': 'amy', 'last': 'smith'}
+   ```
+4. **View memanfaatkan data tersebut:**
+
+   ```python
+   first = self.request.matchdict['first']
+   last = self.request.matchdict['last']
+   ```
+5. **Data diteruskan ke template untuk ditampilkan.**
+
+---
+
+### Mengenal `matchdict`
+
+`request.matchdict` adalah dictionary yang berisi nilai dari pola dinamis di URL.
+
+Contoh:
 
 ```python
-@view_config(route_name='home', renderer='home.pt')
-def home(request):
-    return {'name': 'Home View'}
+# Route: /blog/{year}/{month}/{slug}
+# URL: /blog/2025/11/routing-pyramid
 
-@view_config(route_name='hello', renderer='home.pt')
-def hello(request):
-    return {'name': 'Hello View'}
+request.matchdict = {
+    'year': '2025',
+    'month': '11',
+    'slug': 'routing-pyramid'
+}
 ```
 
-**Masalah:**
+---
 
-* Pengaturan `renderer` ditulis berulang.
-* Setiap *view* terpisah, meskipun fungsinya mirip.
-* Sulit berbagi data atau fungsi bantu.
+### Jenis Replacement Pattern
 
-### Sesudah (View Class)
+1. **Sederhana**
+
+   ```python
+   config.add_route('user', '/users/{id}')
+   ```
+
+   Mencocokkan `/users/123`
+
+2. **Beberapa Parameter**
+
+   ```python
+   config.add_route('blog', '/blog/{year}/{month}/{slug}')
+   ```
+
+3. **Dengan Regex**
+
+   ```python
+   config.add_route('user', '/users/{id:\d+}')
+   ```
+
+   Hanya cocok untuk angka (`\d+`)
+
+4. **Catch-All**
+
+   ```python
+   config.add_route('files', '/files/*subpath')
+   ```
+
+   Cocok untuk banyak segmen sekaligus
+
+---
+
+## Extra Credit: Mengakses `/howdy` Tanpa Parameter
+
+Jika mengakses:
+
+```
+http://localhost:6543/howdy
+```
+
+**Hasil:**
+`404 Not Found`
+
+**Alasannya:**
+Pyramid mengharuskan URL memenuhi semua pola pada route:
 
 ```python
-@view_defaults(renderer='home.pt')
-class TutorialViews:
-    def __init__(self, request):
-        self.request = request
-
-    @view_config(route_name='home')
-    def home(self):
-        return {'name': 'Home View'}
-
-    @view_config(route_name='hello')
-    def hello(self):
-        return {'name': 'Hello View'}
+config.add_route('home', '/howdy/{first}/{last}')
 ```
 
-**Keuntungan:**
+Tanpa `first` dan `last`, route tidak cocok, sehingga menghasilkan 404.
 
-* Konfigurasi umum hanya ditulis sekali.
-* Semua *view* yang berkaitan berada dalam satu tempat.
-* Dapat berbagi data atau metode bantu dengan mudah.
+**Solusi:**
+Menambahkan route alternatif:
+
+```python
+config.add_route('home_default', '/howdy')
+```
+
+dan menyesuaikan view agar bisa menangani default value:
+
+```python
+first = self.request.matchdict.get('first', 'Guest')
+last = self.request.matchdict.get('last', '')
+```
 
 ---
 
 ## Konsep Penting
 
-### 1. View Defaults
+### 1. Urutan Route (Route Ordering)
 
-`@view_defaults` digunakan untuk memberikan pengaturan umum pada semua metode dalam satu kelas.
-Misalnya:
-
-* `renderer` → menentukan template default.
-* `permission` → menentukan hak akses default.
-
-### 2. Dependency Injection
-
-Pyramid otomatis memberikan `request` ke dalam *constructor*, sehingga setiap metode bisa mengakses data permintaan melalui `self.request`.
-
-### 3. Instance Variables
-
-Kita dapat menyimpan informasi di dalam kelas agar bisa digunakan oleh beberapa metode:
+Urutan pendaftaran route menentukan prioritas pencocokan:
 
 ```python
-def __init__(self, request):
-    self.request = request
-    self.user = request.authenticated_userid
+config.add_route('specific', '/users/admin')
+config.add_route('general', '/users/{id}')
 ```
 
----
+URL `/users/admin` akan cocok dengan `specific` karena didefinisikan lebih dulu.
 
-## Kapan Sebaiknya Menggunakan View Class?
+### 2. Perbedaan `matchdict` vs `params`
 
-Gunakan *view class* jika:
+| Atribut     | Sumber Data  | Contoh URL      | Cara Akses                |
+| ----------- | ------------ | --------------- | ------------------------- |
+| `matchdict` | Path URL     | `/users/123`    | `request.matchdict['id']` |
+| `params`    | Query string | `/users?id=123` | `request.params['id']`    |
 
-* Beberapa *view* menggunakan data yang sama.
-* Membuat REST API dengan berbagai operasi (GET, POST, PUT, DELETE).
-* Ada konfigurasi atau kode yang berulang.
-* Ingin menulis kode yang lebih rapi dan mudah diuji.
+### 3. Nama Route (Route Names)
 
-Gunakan *view function* jika:
+Nama route memudahkan pembuatan URL secara dinamis:
 
-* *View* sederhana dan berdiri sendiri.
-* Tidak ada konfigurasi berulang.
-* Kode kecil dan tidak saling bergantung.
-
----
-
-## Catatan Penting
-
-1. Gunakan nama kelas dengan akhiran `Views` (contoh: `UserViews`, `AdminViews`).
-2. Satu kelas sebaiknya menangani satu fitur utama.
-3. Hindari operasi berat di dalam `__init__()`.
-4. Saat pengujian, selalu buat instance menggunakan `DummyRequest`.
-5. Tambahkan komentar untuk menjelaskan fungsi setiap metode.
+```python
+request.route_url('home', first='john', last='doe')
+# Menghasilkan: /howdy/john/doe
+```
 
 ---
 
 ## Kesimpulan
 
-Menggunakan *view classes* membuat kode Pyramid lebih terstruktur dan mudah dirawat.
-Dengan `@view_defaults`, pengaturan berulang bisa dipusatkan, dan berbagai *view* yang saling berkaitan dapat dikelompokkan dalam satu kelas.
+Routing adalah bagian penting dari arsitektur web. Di Pyramid, sistem routing menyediakan:
 
-Langkah ini mungkin terlihat kecil, tetapi sangat berguna ketika aplikasi berkembang menjadi lebih kompleks.
+* **Kejelasan dan eksplisitasi** dalam pencocokan URL
+* **Fleksibilitas tinggi** dalam mendefinisikan pola URL
+* **Kemudahan pengujian dan pemeliharaan**
+* **Integrasi kuat** dengan objek `request` untuk akses data dari URL
+
+Dengan memahami konsep routing, developer dapat membuat struktur URL yang rapi, terukur, dan mudah dikelola di seluruh aplikasi web.
