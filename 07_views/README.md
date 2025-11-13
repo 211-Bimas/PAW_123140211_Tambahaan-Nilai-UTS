@@ -4,7 +4,7 @@ Mengatur modul *views* menggunakan *decorator* dan beberapa *view* sekaligus.
 
 ---
 
-## **Latar Belakang**
+## **Deskripsi**
 
 Dalam framework Pyramid, **view** adalah bagian utama yang menerima *web request* dan mengembalikan *response*.
 Pada contoh sebelumnya, fungsi `hello_world` berperan sebagai *view* sederhana.
@@ -236,3 +236,4 @@ Dengan memindahkan *view* ke modul terpisah dan menggunakan dekorator `@view_con
 * **Mudah dikelola** — Pyramid otomatis menemukan semua *view* melalui `config.scan()`.
 
 Pendekatan ini tidak hanya membuat kode lebih bersih, tetapi juga membantu memahami bagaimana *request* diterima, diproses, dan dikembalikan menjadi *response* di dalam aplikasi web Pyramid.
+
