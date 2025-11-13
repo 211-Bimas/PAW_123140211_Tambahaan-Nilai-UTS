@@ -110,6 +110,19 @@ res = self.testapp.get('/plain?name=Jane%20Doe', status=200)
 $VENV/bin/pytest tutorial/tests.py -q
 ```
 
+Jika berhasil, hasilnya akan seperti ini:
+
+```
+....
+5 passed in 0.30 seconds
+```
+
+Hasil :
+<img width="1238" height="446" alt="Screenshot 2025-11-13 231852" src="https://github.com/user-attachments/assets/c8ed79b1-4111-43e9-bd13-a64527d80697" />
+
+
+---
+
 ### 6. Menjalankan Aplikasi
 
 ```bash
