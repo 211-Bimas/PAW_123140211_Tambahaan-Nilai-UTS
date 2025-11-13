@@ -1,56 +1,67 @@
-# Mengorganisir Views dengan View Classes
+# Pengembangan AJAX dengan JSON Renderer
 
 ## Deskripsi
 
-Tutorial ini menjelaskan cara mengubah *view functions* menjadi *view classes* pada **Pyramid Framework**.
-Dengan menggunakan *view classes*, beberapa *view* yang saling berhubungan dapat digabungkan ke dalam satu kelas, sehingga kode menjadi lebih rapi, mudah dikelola, dan efisien.
+Aplikasi web modern tidak hanya menampilkan halaman HTML. Sekarang, halaman web sering kali menggunakan **JavaScript dan AJAX** untuk mengambil data dari server dalam format **JSON**, lalu menampilkannya secara dinamis tanpa perlu memuat ulang halaman.
+Framework **Pyramid** menyediakan **JSON renderer** yang memudahkan proses ini.
 
-Sebelumnya, semua *view* dibuat dalam bentuk fungsi yang terpisah.
-Namun dalam aplikasi nyata, sering kali beberapa *view* bekerja dengan data yang sama atau memiliki tujuan yang mirip, misalnya:
-
-* Menampilkan data dari sumber yang sama
-* Menangani berbagai operasi pada REST API
-* Membutuhkan konfigurasi atau fungsi bantu (*helper function*) yang sama
-
-### Keuntungan Menggunakan View Classes
-
-1. **Mengelompokkan Views yang Berkaitan**
-   Semua *view* dengan fungsi serupa dapat disatukan dalam satu kelas.
-2. **Menyederhanakan Konfigurasi**
-   Pengaturan yang berulang dapat dipusatkan di tingkat kelas.
-3. **Berbagi Data dan Fungsi Bantu**
-   Data atau fungsi yang sama bisa digunakan oleh beberapa *view* di dalam satu kelas.
-
----
+JSON renderer di Pyramid memungkinkan kita mengembalikan data Python dalam format JSON secara otomatis. Selain itu, Pyramid juga mengatur content type (`application/json`) dan memberikan fleksibilitas untuk mengelola API berbasis data.
 
 ## Tujuan
 
-1. Mengelompokkan *view* yang berhubungan ke dalam satu *class*.
-2. Menyatukan pengaturan menggunakan `@view_defaults`.
-3. Memahami bagaimana *view class* dibuat dan digunakan di Pyramid.
+* Memahami cara menggunakan JSON renderer di Pyramid
+* Membuat endpoint API yang menampilkan data dalam format JSON
+* Menerapkan beberapa decorator (`@view_config`) pada satu method view
 
 ---
 
-## Langkah-langkah Implementasi
+## Langkah-langkah
 
 ### 1. Menyalin Proyek Sebelumnya
 
+Gunakan proyek `view_classes` sebagai dasar, lalu salin ke folder baru bernama `json`:
+
 ```bash
-cd ..; cp -r templating view_classes; cd view_classes
+cd ..; cp -r view_classes json; cd json
 $VENV/bin/pip install -e .
 ```
 
+Langkah ini membuat salinan proyek yang akan kita ubah agar dapat menampilkan data JSON.
+
 ---
 
-### 2. Membuat View Class
+### 2. Menambahkan Route untuk JSON
 
-Pada file `view_classes/tutorial/views.py`, ubah fungsi *view* menjadi metode di dalam sebuah kelas.
+Tambahkan route baru `hello_json` di file `json/tutorial/__init__.py`:
+
+```python
+from pyramid.config import Configurator
+
+
+def main(global_config, **settings):
+    config = Configurator(settings=settings)
+    config.include('pyramid_chameleon')
+    config.add_route('home', '/')
+    config.add_route('hello', '/howdy')
+    config.add_route('hello_json', '/howdy.json')  # Route untuk JSON
+    config.scan('.views')
+    return config.make_wsgi_app()
+```
+
+Baris `config.add_route('hello_json', '/howdy.json')` digunakan untuk membuat endpoint yang akan mengembalikan data JSON dari server.
+
+---
+
+### 3. Menambahkan Decorator JSON di View
+
+Edit file `json/tutorial/views.py`, lalu tambahkan decorator kedua pada method `hello` agar dapat menangani permintaan JSON:
 
 ```python
 from pyramid.view import (
     view_config,
     view_defaults
-)
+    )
+
 
 @view_defaults(renderer='home.pt')
 class TutorialViews:
@@ -62,215 +73,153 @@ class TutorialViews:
         return {'name': 'Home View'}
 
     @view_config(route_name='hello')
+    @view_config(route_name='hello_json', renderer='json')  # Tambahan untuk JSON
     def hello(self):
         return {'name': 'Hello View'}
 ```
 
-#### Penjelasan Kode
+Penjelasan:
 
-* **`@view_defaults(renderer='home.pt')`**
-  Digunakan untuk memberikan pengaturan umum di tingkat kelas.
-  Semua metode di dalam kelas ini otomatis memakai renderer `home.pt`, sehingga tidak perlu ditulis berulang di setiap `@view_config`.
+* `@view_config(route_name='hello')` → menghasilkan halaman HTML.
+* `@view_config(route_name='hello_json', renderer='json')` → menghasilkan response dalam format JSON.
 
-* **`__init__(self, request)`**
-  Fungsi *constructor* yang dijalankan otomatis oleh Pyramid.
-  Parameter `request` berisi informasi permintaan (seperti data user, URL, dan lain-lain).
-
-* **Metode `home()` dan `hello()`**
-  Adalah dua *view* yang sebelumnya berbentuk fungsi, kini menjadi metode dalam satu kelas.
-  Keduanya mengembalikan *dictionary* yang akan digunakan oleh template.
+Satu method `hello()` sekarang bisa melayani dua permintaan berbeda: **HTML** dan **JSON**.
 
 ---
 
-### 3. Memperbarui Unit Test
+### 4. Menambahkan Functional Test
 
-Edit file `view_classes/tutorial/tests.py` agar menggunakan *view class*.
+Tambahkan test di akhir file `json/tutorial/tests.py` untuk memastikan endpoint JSON berfungsi dengan benar:
 
 ```python
-import unittest
-from pyramid import testing
-
-class TutorialViewTests(unittest.TestCase):
-    def setUp(self):
-        self.config = testing.setUp()
-
-    def tearDown(self):
-        testing.tearDown()
-
-    def test_home(self):
-        from .views import TutorialViews
-        request = testing.DummyRequest()
-        inst = TutorialViews(request)
-        response = inst.home()
-        self.assertEqual('Home View', response['name'])
-
-    def test_hello(self):
-        from .views import TutorialViews
-        request = testing.DummyRequest()
-        inst = TutorialViews(request)
-        response = inst.hello()
-        self.assertEqual('Hello View', response['name'])
+def test_hello_json(self):
+    res = self.testapp.get('/howdy.json', status=200)
+    self.assertIn(b'{"name": "Hello View"}', res.body)
+    self.assertEqual(res.content_type, 'application/json')
 ```
 
-#### Pola Pengujian View Class
-
-1. Import kelas *view*.
-2. Buat *DummyRequest* untuk meniru permintaan pengguna.
-3. Buat instance dari kelas tersebut.
-4. Jalankan metode yang ingin diuji dan periksa hasilnya.
+Test ini memastikan response dari `/howdy.json` benar-benar mengembalikan data JSON dan memiliki content type yang sesuai.
 
 ---
 
-### 4. Menjalankan Test
+### 5. Menjalankan Test
+
+Jalankan seluruh test menggunakan perintah berikut:
 
 ```bash
 $VENV/bin/pytest tutorial/tests.py -q
 ```
 
-Jika berhasil, hasilnya akan seperti ini:
+Jika konfigurasi benar, hasilnya akan seperti ini:
 
 ```
-....
-4 passed in 0.34 seconds
+.....
+5 passed in 0.47 seconds
 ```
 
-Hasil :
-<img width="1244" height="447" alt="Screenshot 2025-11-13 230352" src="https://github.com/user-attachments/assets/f562d35e-5108-47b5-84d2-5ecbf7a2d63e" />
+Hasil:
+<img width="1239" height="447" alt="Screenshot 2025-11-14 001511" src="https://github.com/user-attachments/assets/b2531cbd-75a2-4dc6-9f9c-a53f2ab8a29e" />
 
 ---
 
-### 5. Menjalankan Aplikasi
+### 6. Menjalankan Aplikasi
+
+Jalankan server Pyramid dalam mode pengembangan:
 
 ```bash
 $VENV/bin/pserve development.ini --reload
 ```
 
-Buka browser dan akses:
+---
 
-* [http://localhost:6543/](http://localhost:6543/)
-* [http://localhost:6543/howdy](http://localhost:6543/howdy)
+### 7. Melihat Hasil di Browser
 
-**Output yang ditampilkan di browser:**
+Buka alamat berikut di browser:
 
 ```
-Hi Home View
-Hi Hello View
+http://localhost:6543/howdy.json
+```
+
+Tampilan di browser akan menunjukkan hasil response JSON seperti:
+
+```json
+{"name": "Hello View"}
 ```
 
 Hasil:
-<img width="1919" height="1019" alt="Screenshot 2025-11-13 230425" src="https://github.com/user-attachments/assets/ba9f68c9-df16-4c81-aaae-f966553cf899" />
+<img width="1919" height="1013" alt="Screenshot 2025-11-14 001541" src="https://github.com/user-attachments/assets/f4b0082c-0ac3-4a62-8535-4749ec60411f" />
 
-<img width="1919" height="1019" alt="Screenshot 2025-11-13 230439" src="https://github.com/user-attachments/assets/b416aeeb-550b-4483-a65b-a18fbc568723" />
+<img width="1919" height="1014" alt="Screenshot 2025-11-14 001549" src="https://github.com/user-attachments/assets/ef2601c0-a96b-4e15-9f34-f1e617e97652" />
 
 ---
 
 ## Analisis
 
-Pada tahap ini, tidak ada fitur baru yang ditambahkan.
-Kita hanya mengubah struktur kode agar lebih terorganisir.
+### Konsep Data-Oriented View Layer
 
-Sebelumnya, setiap *view* berdiri sendiri, tetapi sekarang dua *view* tersebut digabungkan ke dalam satu kelas dengan `@view_defaults`.
-Hal ini membuat kode lebih mudah dibaca dan dirawat.
+Sebelumnya, kita telah memisahkan logika view dari tampilan HTML dengan cara mengembalikan data Python. Pendekatan ini membuat kode lebih mudah diuji dan fleksibel.
 
-### Sebelum (View Functions)
+Dengan menggunakan JSON renderer, Pyramid dapat otomatis mengubah data Python menjadi format JSON tanpa tambahan kode manual.
+
+---
+
+### Cara Kerja JSON Renderer
+
+Langkah-langkah yang dilakukan dalam implementasi ini:
+
+1. Menambahkan route baru `/howdy.json` yang diarahkan ke `hello_json`.
+2. Menambahkan decorator kedua pada method `hello()` untuk menangani format JSON.
+3. Renderer `json` secara otomatis mengubah data dictionary Python menjadi JSON dan menetapkan `Content-Type: application/json`.
+
+---
+
+### Multiple Decorator (Stacking)
+
+Satu view bisa memiliki beberapa decorator agar dapat menghasilkan output berbeda tergantung route-nya:
 
 ```python
-@view_config(route_name='home', renderer='home.pt')
-def home(request):
-    return {'name': 'Home View'}
-
-@view_config(route_name='hello', renderer='home.pt')
-def hello(request):
+@view_config(route_name='hello')  # Mengembalikan HTML
+@view_config(route_name='hello_json', renderer='json')  # Mengembalikan JSON
+def hello(self):
     return {'name': 'Hello View'}
 ```
 
-**Masalah:**
+Dengan cara ini:
 
-* Pengaturan `renderer` ditulis berulang.
-* Setiap *view* terpisah, meskipun fungsinya mirip.
-* Sulit berbagi data atau fungsi bantu.
-
-### Sesudah (View Class)
-
-```python
-@view_defaults(renderer='home.pt')
-class TutorialViews:
-    def __init__(self, request):
-        self.request = request
-
-    @view_config(route_name='home')
-    def home(self):
-        return {'name': 'Home View'}
-
-    @view_config(route_name='hello')
-    def hello(self):
-        return {'name': 'Hello View'}
-```
-
-**Keuntungan:**
-
-* Konfigurasi umum hanya ditulis sekali.
-* Semua *view* yang berkaitan berada dalam satu tempat.
-* Dapat berbagi data atau metode bantu dengan mudah.
+* Mengakses `/howdy` → tampil sebagai halaman HTML.
+* Mengakses `/howdy.json` → tampil sebagai data JSON.
 
 ---
 
-## Konsep Penting
+### Alternatif: View Predicates
 
-### 1. View Defaults
-
-`@view_defaults` digunakan untuk memberikan pengaturan umum pada semua metode dalam satu kelas.
-Misalnya:
-
-* `renderer` → menentukan template default.
-* `permission` → menentukan hak akses default.
-
-### 2. Dependency Injection
-
-Pyramid otomatis memberikan `request` ke dalam *constructor*, sehingga setiap metode bisa mengakses data permintaan melalui `self.request`.
-
-### 3. Instance Variables
-
-Kita dapat menyimpan informasi di dalam kelas agar bisa digunakan oleh beberapa metode:
-
-```python
-def __init__(self, request):
-    self.request = request
-    self.user = request.authenticated_userid
-```
+Sebagai alternatif, Pyramid juga mendukung **view predicates** untuk menentukan renderer berdasarkan header `Accept:` dari request.
+Dengan begitu, kita bisa menggunakan satu route yang sama tanpa perlu menambahkan `.json` di URL.
 
 ---
 
-## Kapan Sebaiknya Menggunakan View Class?
+### Keterbatasan JSON Renderer
 
-Gunakan *view class* jika:
+JSON renderer di Pyramid menggunakan encoder bawaan dari Python. Akibatnya, beberapa tipe data seperti **datetime** tidak dapat dikonversi secara langsung ke JSON.
 
-* Beberapa *view* menggunakan data yang sama.
-* Membuat REST API dengan berbagai operasi (GET, POST, PUT, DELETE).
-* Ada konfigurasi atau kode yang berulang.
-* Ingin menulis kode yang lebih rapi dan mudah diuji.
+**Solusi yang dapat dilakukan:**
 
-Gunakan *view function* jika:
+* Membuat custom JSON renderer
+* Mengubah data datetime ke string sebelum dikirim
+* Menggunakan serializer eksternal seperti `simplejson`
 
-* *View* sederhana dan berdiri sendiri.
-* Tidak ada konfigurasi berulang.
-* Kode kecil dan tidak saling bergantung.
-
----
-
-## Catatan Penting
-
-1. Gunakan nama kelas dengan akhiran `Views` (contoh: `UserViews`, `AdminViews`).
-2. Satu kelas sebaiknya menangani satu fitur utama.
-3. Hindari operasi berat di dalam `__init__()`.
-4. Saat pengujian, selalu buat instance menggunakan `DummyRequest`.
-5. Tambahkan komentar untuk menjelaskan fungsi setiap metode.
+Dengan cara ini, developer bisa menyesuaikan renderer sesuai kebutuhan aplikasi.
 
 ---
 
 ## Kesimpulan
 
-Menggunakan *view classes* membuat kode Pyramid lebih terstruktur dan mudah dirawat.
-Dengan `@view_defaults`, pengaturan berulang bisa dipusatkan, dan berbagai *view* yang saling berkaitan dapat dikelompokkan dalam satu kelas.
+Dalam tutorial ini, kita telah belajar bahwa Pyramid dapat dengan mudah digunakan untuk membuat **API berbasis JSON**.
+Langkah-langkah utamanya meliputi:
 
-Langkah ini mungkin terlihat kecil, tetapi sangat berguna ketika aplikasi berkembang menjadi lebih kompleks.
+1. Menambahkan route untuk endpoint JSON
+2. Menggunakan decorator tambahan dengan `renderer='json'`
+3. Menguji endpoint dengan functional test
+4. Menjalankan aplikasi untuk melihat hasilnya di browser
+
+Dengan pendekatan ini, satu view bisa melayani dua format berbeda — **HTML untuk tampilan browser**, dan **JSON untuk komunikasi AJAX** — sehingga membuat aplikasi web lebih interaktif dan modern.
