@@ -1,276 +1,266 @@
-# Mengorganisir Views dengan View Classes
+# Menangani Web Requests dan Responses
 
 ## Deskripsi
 
-Tutorial ini menjelaskan cara mengubah *view functions* menjadi *view classes* pada **Pyramid Framework**.
-Dengan menggunakan *view classes*, beberapa *view* yang saling berhubungan dapat digabungkan ke dalam satu kelas, sehingga kode menjadi lebih rapi, mudah dikelola, dan efisien.
+Tutorial ini membahas cara kerja Pyramid Framework dalam menangani **permintaan (request)** dan **tanggapan (response)** pada aplikasi web.
+Setiap aplikasi web bekerja dengan menerima permintaan dari pengguna (misalnya melalui browser) dan mengirimkan tanggapan kembali. Proses ini sangat penting karena menjadi inti dari semua komunikasi di web.
 
-Sebelumnya, semua *view* dibuat dalam bentuk fungsi yang terpisah.
-Namun dalam aplikasi nyata, sering kali beberapa *view* bekerja dengan data yang sama atau memiliki tujuan yang mirip, misalnya:
+Pyramid menggunakan library **WebOb**, yang sudah mapan dan banyak digunakan di dunia Python, untuk menangani dua hal utama:
 
-* Menampilkan data dari sumber yang sama
-* Menangani berbagai operasi pada REST API
-* Membutuhkan konfigurasi atau fungsi bantu (*helper function*) yang sama
-
-### Keuntungan Menggunakan View Classes
-
-1. **Mengelompokkan Views yang Berkaitan**
-   Semua *view* dengan fungsi serupa dapat disatukan dalam satu kelas.
-2. **Menyederhanakan Konfigurasi**
-   Pengaturan yang berulang dapat dipusatkan di tingkat kelas.
-3. **Berbagi Data dan Fungsi Bantu**
-   Data atau fungsi yang sama bisa digunakan oleh beberapa *view* di dalam satu kelas.
-
----
+* **Request:** membaca data dari URL, parameter, header, atau cookies.
+* **Response:** membuat tanggapan yang akan dikirim kembali ke pengguna, lengkap dengan isi (body), status kode, dan header.
 
 ## Tujuan
 
-1. Mengelompokkan *view* yang berhubungan ke dalam satu *class*.
-2. Menyatukan pengaturan menggunakan `@view_defaults`.
-3. Memahami bagaimana *view class* dibuat dan digunakan di Pyramid.
-
----
+1. Memahami bagaimana Pyramid menangani request dan response.
+2. Mempelajari cara mengambil data dari request (misalnya dari URL parameter).
+3. Mengetahui cara mengatur isi dan informasi pada response.
+4. Mempelajari cara membuat redirect dengan benar menggunakan HTTP response khusus.
 
 ## Langkah-langkah Implementasi
 
-### 1. Menyalin Proyek Sebelumnya
+### 1. Setup Proyek
 
 ```bash
-cd ..; cp -r templating view_classes; cd view_classes
+cd ..
+cp -r view_classes request_response
+cd request_response
 $VENV/bin/pip install -e .
 ```
 
----
+### 2. Konfigurasi Routes
 
-### 2. Membuat View Class
+Edit file `request_response/tutorial/__init__.py`.
 
-Pada file `view_classes/tutorial/views.py`, ubah fungsi *view* menjadi metode di dalam sebuah kelas.
+**Penjelasan:**
 
-```python
-from pyramid.view import (
-    view_config,
-    view_defaults
-)
+* `home` (`/`) → halaman utama, berfungsi untuk melakukan redirect.
+* `plain` (`/plain`) → halaman tujuan yang menampilkan teks sederhana.
 
-@view_defaults(renderer='home.pt')
-class TutorialViews:
-    def __init__(self, request):
-        self.request = request
+### 3. Membuat Views
 
-    @view_config(route_name='home')
-    def home(self):
-        return {'name': 'Home View'}
-
-    @view_config(route_name='hello')
-    def hello(self):
-        return {'name': 'Hello View'}
-```
+Edit file `request_response/tutorial/views.py`.
 
 #### Penjelasan Kode
 
-* **`@view_defaults(renderer='home.pt')`**
-  Digunakan untuk memberikan pengaturan umum di tingkat kelas.
-  Semua metode di dalam kelas ini otomatis memakai renderer `home.pt`, sehingga tidak perlu ditulis berulang di setiap `@view_config`.
-
-* **`__init__(self, request)`**
-  Fungsi *constructor* yang dijalankan otomatis oleh Pyramid.
-  Parameter `request` berisi informasi permintaan (seperti data user, URL, dan lain-lain).
-
-* **Metode `home()` dan `hello()`**
-  Adalah dua *view* yang sebelumnya berbentuk fungsi, kini menjadi metode dalam satu kelas.
-  Keduanya mengembalikan *dictionary* yang akan digunakan oleh template.
-
----
-
-### 3. Memperbarui Unit Test
-
-Edit file `view_classes/tutorial/tests.py` agar menggunakan *view class*.
+**View `home()` – Melakukan Redirect**
 
 ```python
-import unittest
-from pyramid import testing
-
-class TutorialViewTests(unittest.TestCase):
-    def setUp(self):
-        self.config = testing.setUp()
-
-    def tearDown(self):
-        testing.tearDown()
-
-    def test_home(self):
-        from .views import TutorialViews
-        request = testing.DummyRequest()
-        inst = TutorialViews(request)
-        response = inst.home()
-        self.assertEqual('Home View', response['name'])
-
-    def test_hello(self):
-        from .views import TutorialViews
-        request = testing.DummyRequest()
-        inst = TutorialViews(request)
-        response = inst.hello()
-        self.assertEqual('Hello View', response['name'])
+@view_config(route_name='home')
+def home(self):
+    return HTTPFound(location='/plain')
 ```
 
-#### Pola Pengujian View Class
+* `HTTPFound` adalah jenis response khusus dengan status kode **302 (redirect)**.
+* Saat pengguna membuka `/`, browser otomatis diarahkan ke `/plain`.
 
-1. Import kelas *view*.
-2. Buat *DummyRequest* untuk meniru permintaan pengguna.
-3. Buat instance dari kelas tersebut.
-4. Jalankan metode yang ingin diuji dan periksa hasilnya.
+**View `plain()` – Membaca Request dan Mengirim Response**
 
----
+```python
+@view_config(route_name='plain')
+def plain(self):
+    name = self.request.params.get('name', 'No Name Provided')
+    body = 'URL %s with name: %s' % (self.request.url, name)
+    return Response(
+        content_type='text/plain',
+        body=body
+    )
+```
 
-### 4. Menjalankan Test
+**Penjelasan:**
+
+* `self.request.params` digunakan untuk membaca data dari URL.
+* Jika parameter `name` tidak dikirim, maka akan muncul teks *“No Name Provided”*.
+* `Response()` digunakan untuk membuat tanggapan dalam format teks biasa.
+
+### 4. Mengubah dan Menjalankan Test
+
+Edit file `request_response/tutorial/tests.py`.
+
+**Contoh Unit Test:**
+
+```python
+def test_home(self):
+    response = inst.home()
+    self.assertEqual(response.status, '302 Found')
+```
+
+→ Memastikan bahwa view `home()` benar-benar melakukan redirect.
+
+```python
+request = testing.DummyRequest()
+request.GET['name'] = 'Jane Doe'
+response = inst.plain()
+self.assertIn(b'Jane Doe', response.body)
+```
+
+→ Menguji bahwa parameter dari URL terbaca dengan benar.
+
+**Functional Test:**
+
+```python
+res = self.testapp.get('/plain?name=Jane%20Doe', status=200)
+```
+
+→ Menjalankan simulasi akses web nyata menggunakan *WebTest* untuk memastikan hasil akhir sesuai harapan.
+
+### 5. Menjalankan Tests
 
 ```bash
 $VENV/bin/pytest tutorial/tests.py -q
 ```
 
-Jika berhasil, hasilnya akan seperti ini:
-
-```
-....
-4 passed in 0.34 seconds
-```
-
-Hasil :
-<img width="1244" height="447" alt="Screenshot 2025-11-13 230352" src="https://github.com/user-attachments/assets/f562d35e-5108-47b5-84d2-5ecbf7a2d63e" />
-
----
-
-### 5. Menjalankan Aplikasi
+### 6. Menjalankan Aplikasi
 
 ```bash
 $VENV/bin/pserve development.ini --reload
 ```
 
-Buka browser dan akses:
+**Akses di Browser:**
 
-* [http://localhost:6543/](http://localhost:6543/)
-* [http://localhost:6543/howdy](http://localhost:6543/howdy)
+* `http://localhost:6543/` → akan otomatis diarahkan ke `/plain`
+* `http://localhost:6543/plain` → menampilkan teks *“No Name Provided”*
+* `http://localhost:6543/plain?name=alice` → menampilkan teks *“URL ... with name: alice”*
 
-**Output yang ditampilkan di browser:**
+**Hasil:** 
+<img width="1919" height="1017" alt="Screenshot 2025-11-13 232435" src="https://github.com/user-attachments/assets/8b13cf59-c958-40fe-809f-767e1d01c434" />
 
-```
-Hi Home View
-Hi Hello View
-```
+<img width="1919" height="1018" alt="Screenshot 2025-11-13 232445" src="https://github.com/user-attachments/assets/f7a859ba-77a7-4060-b3b8-b84ba8f42317" />
 
-Hasil:
-<img width="1919" height="1019" alt="Screenshot 2025-11-13 230425" src="https://github.com/user-attachments/assets/ba9f68c9-df16-4c81-aaae-f966553cf899" />
-
-<img width="1919" height="1019" alt="Screenshot 2025-11-13 230439" src="https://github.com/user-attachments/assets/b416aeeb-550b-4483-a65b-a18fbc568723" />
+<img width="1919" height="1014" alt="Screenshot 2025-11-13 232456" src="https://github.com/user-attachments/assets/f15538ed-ee2c-4af2-aa7f-d9f469c29db3" />
 
 ---
 
 ## Analisis
 
-Pada tahap ini, tidak ada fitur baru yang ditambahkan.
-Kita hanya mengubah struktur kode agar lebih terorganisir.
+### Alur Kerja Aplikasi
 
-Sebelumnya, setiap *view* berdiri sendiri, tetapi sekarang dua *view* tersebut digabungkan ke dalam satu kelas dengan `@view_defaults`.
-Hal ini membuat kode lebih mudah dibaca dan dirawat.
+1. **Pengguna membuka `/`**
 
-### Sebelum (View Functions)
+   * Fungsi `home()` dijalankan.
+   * Mengembalikan response `HTTPFound` (redirect ke `/plain`).
 
-```python
-@view_config(route_name='home', renderer='home.pt')
-def home(request):
-    return {'name': 'Home View'}
+2. **Browser diarahkan ke `/plain`**
 
-@view_config(route_name='hello', renderer='home.pt')
-def hello(request):
-    return {'name': 'Hello View'}
-```
+   * Fungsi `plain()` dijalankan.
+   * Membaca parameter `name` dari URL.
+   * Membuat response teks biasa dengan informasi URL dan nama.
 
-**Masalah:**
+3. **Pengguna membuka `/plain?name=alice`**
 
-* Pengaturan `renderer` ditulis berulang.
-* Setiap *view* terpisah, meskipun fungsinya mirip.
-* Sulit berbagi data atau fungsi bantu.
+   * Parameter `name=alice` terbaca.
+   * Response menampilkan teks yang berisi nama tersebut.
 
-### Sesudah (View Class)
+### Request Object
+
+`Request` berisi semua informasi yang dikirim pengguna ke server.
+
+Contoh data yang bisa diakses:
 
 ```python
-@view_defaults(renderer='home.pt')
-class TutorialViews:
-    def __init__(self, request):
-        self.request = request
-
-    @view_config(route_name='home')
-    def home(self):
-        return {'name': 'Home View'}
-
-    @view_config(route_name='hello')
-    def hello(self):
-        return {'name': 'Hello View'}
+self.request.url         # URL lengkap
+self.request.path        # Hanya path (/plain)
+self.request.GET         # Parameter di URL (?name=...)
+self.request.headers     # Header HTTP
+self.request.cookies     # Cookies
+self.request.json_body   # Data JSON (jika ada)
 ```
 
-**Keuntungan:**
+### Response Object
 
-* Konfigurasi umum hanya ditulis sekali.
-* Semua *view* yang berkaitan berada dalam satu tempat.
-* Dapat berbagi data atau metode bantu dengan mudah.
+`Response` berisi semua informasi yang dikirim server ke pengguna.
+
+Contoh:
+
+```python
+Response(
+    body='Hello World',
+    status='200 OK',
+    content_type='text/plain'
+)
+```
+
+Bisa juga menambahkan headers atau cookies sesuai kebutuhan.
+
+### Redirect (Pengalihan Halaman)
+
+Ada beberapa cara membuat redirect di Pyramid:
+
+**1. Return HTTPFound (disarankan)**
+
+```python
+return HTTPFound(location='/plain')
+```
+
+**2. Raise HTTPFound**
+
+```python
+raise HTTPFound(location='/plain')
+```
+
+Keduanya memiliki efek sama, namun `raise` bisa digunakan ketika ingin menghentikan proses lebih awal di dalam fungsi yang kompleks.
+
+### Jenis Redirect Umum
+
+* **HTTPFound (302)** – redirect sementara
+* **HTTPMovedPermanently (301)** – redirect permanen
+* **HTTPSeeOther (303)** – redirect setelah POST
+* **HTTPTemporaryRedirect (307)** – redirect sementara tanpa mengganti metode
+
+---
+
+## Extra Credit: Return vs Raise HTTPFound
+
+### Return
+
+```python
+def home(self):
+    return HTTPFound(location='/plain')
+```
+
+* Lebih mudah dibaca dan diikuti.
+* Cocok untuk flow normal aplikasi.
+
+### Raise
+
+```python
+def home(self):
+    raise HTTPFound(location='/plain')
+```
+
+* Menghentikan eksekusi secara langsung.
+* Berguna untuk kondisi tertentu di tengah proses logika.
+
+**Kesimpulan:**
+Keduanya menghasilkan hasil yang sama, namun `return` lebih direkomendasikan untuk kasus sederhana, sedangkan `raise` cocok digunakan di dalam fungsi helper atau kondisi kompleks.
 
 ---
 
 ## Konsep Penting
 
-### 1. View Defaults
+1. **Integrasi dengan WebOb**
+   Pyramid menggunakan WebOb untuk menyediakan objek `Request` dan `Response` yang stabil dan konsisten.
 
-`@view_defaults` digunakan untuk memberikan pengaturan umum pada semua metode dalam satu kelas.
-Misalnya:
+2. **Siklus Hidup Request**
+   Setiap kali pengguna mengakses URL, Pyramid membuat `Request` baru dan mengirim `Response` setelah view selesai dijalankan.
 
-* `renderer` → menentukan template default.
-* `permission` → menentukan hak akses default.
+3. **Tipe Response di Pyramid**
 
-### 2. Dependency Injection
-
-Pyramid otomatis memberikan `request` ke dalam *constructor*, sehingga setiap metode bisa mengakses data permintaan melalui `self.request`.
-
-### 3. Instance Variables
-
-Kita dapat menyimpan informasi di dalam kelas agar bisa digunakan oleh beberapa metode:
-
-```python
-def __init__(self, request):
-    self.request = request
-    self.user = request.authenticated_userid
-```
-
----
-
-## Kapan Sebaiknya Menggunakan View Class?
-
-Gunakan *view class* jika:
-
-* Beberapa *view* menggunakan data yang sama.
-* Membuat REST API dengan berbagai operasi (GET, POST, PUT, DELETE).
-* Ada konfigurasi atau kode yang berulang.
-* Ingin menulis kode yang lebih rapi dan mudah diuji.
-
-Gunakan *view function* jika:
-
-* *View* sederhana dan berdiri sendiri.
-* Tidak ada konfigurasi berulang.
-* Kode kecil dan tidak saling bergantung.
-
----
-
-## Catatan Penting
-
-1. Gunakan nama kelas dengan akhiran `Views` (contoh: `UserViews`, `AdminViews`).
-2. Satu kelas sebaiknya menangani satu fitur utama.
-3. Hindari operasi berat di dalam `__init__()`.
-4. Saat pengujian, selalu buat instance menggunakan `DummyRequest`.
-5. Tambahkan komentar untuk menjelaskan fungsi setiap metode.
+   * `Response` → response manual.
+   * `dict` → otomatis dirender ke template.
+   * `HTTPException` → redirect atau error.
+   * `str` → otomatis diubah jadi Response.
 
 ---
 
 ## Kesimpulan
 
-Menggunakan *view classes* membuat kode Pyramid lebih terstruktur dan mudah dirawat.
-Dengan `@view_defaults`, pengaturan berulang bisa dipusatkan, dan berbagai *view* yang saling berkaitan dapat dikelompokkan dalam satu kelas.
+Tutorial ini menjelaskan dasar penting dalam pembuatan aplikasi web, yaitu bagaimana cara menangani request dan response.
+Dengan bantuan **WebOb** di Pyramid, kita dapat:
 
-Langkah ini mungkin terlihat kecil, tetapi sangat berguna ketika aplikasi berkembang menjadi lebih kompleks.
+* Mengambil data dari pengguna dengan mudah.
+* Membuat tanggapan yang sesuai dengan kebutuhan.
+* Melakukan redirect dengan berbagai metode.
+* Menulis dan menguji kode dengan lebih terstruktur dan dapat diandalkan.
+
+Pyramid membuat proses ini sederhana namun tetap powerful, sehingga cocok digunakan baik untuk proyek kecil maupun aplikasi besar.
